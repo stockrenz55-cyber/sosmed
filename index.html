@@ -1,0 +1,665 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nyxo Studio | Interactive Dev Tools</title>
+    <!-- Font Import -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Rajdhani:wght@300;500;700&display=swap" rel="stylesheet">
+    <!-- Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Animation Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/animejs/3.2.1/anime.min.js"></script>
+
+    <style>
+        /* --- RESET & VARIABLES --- */
+        :root {
+            --neon-blue: #00f3ff;
+            --neon-purple: #bc13fe;
+            --neon-green: #0aff0a;
+            --neon-pink: #ff0055;
+            --bg-dark: #050505;
+            --glass: rgba(255, 255, 255, 0.05);
+            --border: rgba(255, 255, 255, 0.2);
+            --font-main: 'Orbitron', sans-serif;
+            --font-body: 'Rajdhani', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none; /* Mencegah seleksi teks saat drag */
+        }
+
+        body {
+            background-color: var(--bg-dark);
+            color: white;
+            font-family: var(--font-body);
+            overflow: hidden; /* Mencegah scrollbar karena elemen radial */
+            height: 100vh;
+            width: 100vw;
+            position: relative;
+        }
+
+        /* --- BACKGROUND --- */
+        #bg-video {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: -2;
+            opacity: 0.4;
+            filter: contrast(1.2) brightness(0.6);
+        }
+
+        /* Gradient Overlay untuk keterbacaan */
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, transparent 0%, var(--bg-dark) 90%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        /* --- HOME HERO SECTION --- */
+        #hero {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            z-index: 0;
+            pointer-events: none; /* Klik tembus ke background/menu */
+            transition: opacity 0.5s ease;
+        }
+
+        h1.nyxo-title {
+            font-family: var(--font-main);
+            font-size: 4rem;
+            text-transform: uppercase;
+            letter-spacing: 10px;
+            color: white;
+            text-shadow: 
+                0 0 10px var(--neon-blue),
+                0 0 20px var(--neon-blue),
+                0 0 40px var(--neon-blue);
+            margin-bottom: 10px;
+        }
+
+        p.nyxo-desc {
+            font-size: 1.2rem;
+            color: #ccc;
+            letter-spacing: 2px;
+            max-width: 600px;
+            margin: 0 auto;
+            text-shadow: 0 0 5px rgba(0,0,0,0.8);
+        }
+
+        /* --- DRAGGABLE RADIAL MENU CONTAINER --- */
+        #radial-wrapper {
+            position: absolute;
+            top: 50%; /* Posisi awal tengah */
+            left: 50%;
+            width: 0;
+            height: 0;
+            z-index: 100;
+            /* Cursor drag akan diatur via JS */
+        }
+
+        /* Tombol Utama (Center) */
+        .main-trigger {
+            position: absolute;
+            width: 80px;
+            height: 80px;
+            top: -40px; /* Center offset */
+            left: -40px;
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid var(--neon-purple);
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: grab;
+            box-shadow: 0 0 15px var(--neon-purple);
+            transition: transform 0.2s, box-shadow 0.2s;
+            z-index: 10;
+            backdrop-filter: blur(5px);
+        }
+
+        .main-trigger:active {
+            cursor: grabbing;
+            transform: scale(0.95);
+        }
+
+        .main-trigger i {
+            font-size: 24px;
+            color: white;
+            transition: transform 0.4s ease;
+        }
+
+        .main-trigger.active i {
+            transform: rotate(45deg);
+        }
+
+        .main-trigger:hover {
+            box-shadow: 0 0 25px var(--neon-purple), inset 0 0 10px var(--neon-purple);
+        }
+
+        /* --- BUTTONS GENERICS (RADIAL ITEMS) --- */
+        .radial-item {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            top: -25px; /* Center offset */
+            left: -25px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--border);
+            color: white;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 18px;
+            opacity: 0; /* Hidden by default */
+            pointer-events: none; /* Non-clickable when hidden */
+            transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
+            cursor: pointer;
+            text-align: center;
+            backdrop-filter: blur(4px);
+        }
+
+        /* Label kecil di bawah icon */
+        .radial-item span {
+            font-size: 10px;
+            margin-top: 4px;
+            opacity: 0;
+            transition: opacity 0.3s;
+            position: absolute;
+            top: 55px;
+            white-space: nowrap;
+            background: rgba(0,0,0,0.8);
+            padding: 2px 5px;
+            border-radius: 4px;
+            pointer-events: none;
+        }
+
+        .radial-item:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--neon-blue);
+            box-shadow: 0 0 15px var(--neon-blue);
+            z-index: 20;
+        }
+
+        .radial-item:hover span {
+            opacity: 1;
+        }
+
+        /* Warna khusus per kategori */
+        .radial-item.cat-dev { border-color: var(--neon-blue); color: var(--neon-blue); }
+        .radial-item.cat-dev:hover { box-shadow: 0 0 15px var(--neon-blue); }
+
+        .radial-item.cat-soc { border-color: var(--neon-green); color: var(--neon-green); }
+        .radial-item.cat-soc:hover { box-shadow: 0 0 15px var(--neon-green); }
+
+        /* --- MODAL / CONTENT PANEL --- */
+        #info-modal {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 400px;
+            max-width: 90vw;
+            background: rgba(10, 10, 15, 0.95);
+            border: 1px solid var(--neon-blue);
+            border-radius: 10px;
+            padding: 20px;
+            z-index: 200;
+            transform: translateY(120%); /* Hidden initially */
+            transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 0 20px rgba(0, 243, 255, 0.2);
+            backdrop-filter: blur(10px);
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        #info-modal.visible {
+            transform: translateY(0);
+        }
+
+        #modal-close {
+            position: absolute;
+            top: 10px;
+            right: 15px;
+            color: var(--neon-pink);
+            cursor: pointer;
+            font-size: 20px;
+        }
+
+        #modal-title {
+            font-family: var(--font-main);
+            color: var(--neon-blue);
+            font-size: 1.5rem;
+            margin-bottom: 5px;
+            border-bottom: 1px solid var(--border);
+            padding-bottom: 10px;
+        }
+
+        #modal-desc {
+            font-size: 1rem;
+            color: #ddd;
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+
+        /* Code Block Styling */
+        .code-block {
+            background: #1e1e1e;
+            border-left: 3px solid var(--neon-purple);
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: #d4d4d4;
+            border-radius: 4px;
+            overflow-x: auto;
+            position: relative;
+        }
+        
+        .code-title {
+            font-size: 0.75rem;
+            color: #888;
+            margin-bottom: 5px;
+            display: block;
+            text-transform: uppercase;
+        }
+
+        /* Syntax Highlight Simpel */
+        .kwd { color: #569cd6; } /* Keyword */
+        .str { color: #ce9178; } /* String */
+        .fnc { color: #dcdcaa; } /* Function */
+        .com { color: #6a9955; } /* Comment */
+
+        /* --- RESPONSIVE --- */
+        @media (max-width: 600px) {
+            h1.nyxo-title { font-size: 2.5rem; letter-spacing: 5px; }
+            #info-modal { width: 95%; bottom: 10px; right: 2.5%; }
+            .radial-item { width: 40px; height: 40px; top: -20px; left: -20px; font-size: 14px; }
+        }
+
+        /* --- UTILITY CLASSES --- */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+
+    <!-- Background Video (Abstract Tech Loop) -->
+    <video id="bg-video" autoplay muted loop playsinline poster="https://picsum.photos/seed/tech/1920/1080">
+        <!-- Menggunakan video placeholder pihak ketiga yang stabil -->
+        <source src="https://cdn.coverr.co/videos/coverr-digital-grid-2411/1080p.mp4" type="video/mp4">
+        Browser Anda tidak mendukung tag video.
+    </video>
+    <div class="overlay"></div>
+
+    <!-- Hero Section -->
+    <section id="hero">
+        <h1 class="nyxo-title">Nyxo Studio</h1>
+        <p class="nyxo-desc">Interactive Developer Tools & Social Hub</p>
+    </section>
+
+    <!-- Radial Menu Wrapper (Draggable) -->
+    <div id="radial-wrapper">
+        <!-- Level 1: Main Toggle -->
+        <div class="main-trigger" id="main-btn">
+            <i class="fa-solid fa-plus"></i>
+        </div>
+        
+        <!-- Level 2: Categories (Developer & Social) -->
+        <!-- Item akan digenerate oleh JS, tapi ini strukturnya -->
+        <div id="menu-level-1"></div>
+
+        <!-- Level 3: Content Items (Languages / Icons) -->
+        <div id="menu-level-2"></div>
+    </div>
+
+    <!-- Modal Content -->
+    <div id="info-modal">
+        <div id="modal-close"><i class="fa-solid fa-xmark"></i></div>
+        <h2 id="modal-title">Language Name</h2>
+        <div id="modal-desc">Description here.</div>
+        <span class="code-title">Contoh Kode:</span>
+        <div class="code-block" id="modal-code">
+            // Code here
+        </div>
+    </div>
+
+    <script>
+        // --- DATA & KONFIGURASI ---
+        
+        const languages = [
+            { id: 'py', name: 'Python', icon: 'fa-brands fa-python', desc: 'Bahasa tingkat tinggi yang populer untuk data science, AI, dan web development.', code: 'def hello():\n  print("Hello, Nyxo!")\n\nhello()' },
+            { id: 'html', name: 'HTML', icon: 'fa-brands fa-html5', desc: 'Kerangka dasar untuk membuat struktur halaman web.', code: '<!DOCTYPE html>\n<html>\n  <body>\n    <h1>Halo Dunia</h1>\n  </body>\n</html>' },
+            { id: 'css', name: 'CSS', icon: 'fa-brands fa-css3-alt', desc: 'Digunakan untuk mendesain tata letak dan tampilan visual halaman web.', code: '.neon-btn {\n  color: #0ff;\n  text-shadow: 0 0 10px #0ff;\n}' },
+            { id: 'js', name: 'JavaScript', icon: 'fa-brands fa-js', desc: 'Bahasa pemrograman wajib untuk membuat web interaktif dan dinamis.', code: 'const greet = () => {\n  console.log("Nyxo Studio Ready!");\n};' },
+            { id: 'php', name: 'PHP', icon: 'fa-brands fa-php', desc: 'Bahasa scripting server-side yang sangat dominan di web development.', code: '<?php\necho "Halo dari Nyxo!";\n?>' },
+            { id: 'java', name: 'Java', icon: 'fa-brands fa-java', desc: 'Bahasa OOP yang kuat, digunakan di enterprise, Android, dan sistem besar.', code: 'public class Nyxo {\n  public static void main(String[] args) {\n    System.out.println("System Online");\n  }\n}' },
+            { id: 'c', name: 'C', icon: 'fa-solid fa-c', desc: 'Bahasa prosedural yang menjadi dasar bagi banyak bahasa modern lainnya.', code: '#include <stdio.h>\n\nint main() {\n  printf("C Language Power");\n  return 0;\n}' },
+            { id: 'cpp', name: 'C++', icon: 'fa-solid fa-code', desc: 'Ekstensi dari C dengan fitur OOP, performa tinggi untuk game/engine.', code: '#include <iostream>\nusing namespace std;\n\nint main() {\n  cout << "C++ Fast";\n  return 0;\n}' },
+            { id: 'ruby', name: 'Ruby', icon: 'fa-solid fa-gem', desc: 'Dikenal sintaksisnya yang indah dan produktif, terutama lewat framework Rails.', code: 'puts "Hello from Ruby"' },
+            { id: 'go', name: 'Go', icon: 'fa-brands fa-golang', desc: 'Dikembangkan Google, cepat, efisien untuk concurrency dan sistem cloud.', code: 'package main\nimport "fmt"\n\nfunc main() {\n  fmt.Println("Go Fast!")\n}' },
+            { id: 'swift', name: 'Swift', icon: 'fa-brands fa-swift', desc: 'Bahasa modern dari Apple untuk pengembangan iOS dan macOS.', code: 'import Swift\n\nprint("Hello iOS!")' },
+            { id: 'ts', name: 'TypeScript', icon: 'fa-solid fa-code', desc: 'Superset JavaScript yang menambahkan tipe data statis.', code: 'interface User {\n  name: string;\n}\n\nconst u: User = { name: "Nyxo" };' },
+            { id: 'sql', name: 'SQL', icon: 'fa-solid fa-database', desc: 'Bahasa standar untuk mengelola dan memanipulasi database relasional.', code: 'SELECT * FROM users WHERE studio = "Nyxo";' },
+            { id: 'bash', name: 'Bash', icon: 'fa-solid fa-terminal', desc: 'Command interpreter untuk sistem Unix/Linux, penting untuk otomatisasi.', code: '#!/bin/bash\necho "Running Deployment..."\n./deploy.sh' },
+            { id: 'kt', name: 'Kotlin', icon: 'fa-brands fa-android', desc: 'Bahasa modern untuk Android yang lebih ringkas dan aman dari Java.', code: 'fun main() {\n  println("Hello Kotlin!")\n}' }
+        ];
+
+        const socials = [
+            { name: 'GitHub', icon: 'fa-brands fa-github', link: 'https://github.com', color: '#fff' },
+            { name: 'Twitter', icon: 'fa-brands fa-twitter', link: 'https://twitter.com', color: '#1da1f2' },
+            { name: 'LinkedIn', icon: 'fa-brands fa-linkedin', link: 'https://linkedin.com', color: '#0077b5' },
+            { name: 'Instagram', icon: 'fa-brands fa-instagram', link: 'https://instagram.com', color: '#e1306c' }
+        ];
+
+        // --- STATE MANAGEMENT ---
+        let menuState = 'closed'; // closed, level1, level2_dev, level2_soc
+        const radialWrapper = document.getElementById('radial-wrapper');
+        const mainBtn = document.getElementById('main-btn');
+        const menuL1 = document.getElementById('menu-level-1');
+        const menuL2 = document.getElementById('menu-level-2');
+        const infoModal = document.getElementById('info-modal');
+
+        // --- DRAG LOGIC ---
+        let isDragging = false;
+        let startX, startY, initialLeft, initialTop;
+
+        mainBtn.addEventListener('mousedown', startDrag);
+        mainBtn.addEventListener('touchstart', startDrag, {passive: false});
+
+        function startDrag(e) {
+            // Hanya drag jika menu dalam keadaan tertutup, agar UX tidak confusing
+            if (menuState !== 'closed') {
+                // Jika sedang terbuka, klik berarti menutup
+                closeMenu();
+                return;
+            }
+            
+            e.preventDefault();
+            isDragging = true;
+            
+            // Get input (mouse atau touch)
+            const clientX = e.clientX || e.touches[0].clientX;
+            const clientY = e.clientY || e.touches[0].clientY;
+
+            startX = clientX;
+            startY = clientY;
+
+            const rect = radialWrapper.getBoundingClientRect();
+            initialLeft = rect.left;
+            initialTop = rect.top;
+
+            mainBtn.style.cursor = 'grabbing';
+
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('touchmove', onDrag, {passive: false});
+            document.addEventListener('mouseup', stopDrag);
+            document.addEventListener('touchend', stopDrag);
+        }
+
+        function onDrag(e) {
+            if (!isDragging) return;
+            e.preventDefault();
+
+            const clientX = e.clientX || e.touches[0].clientX;
+            const clientY = e.clientY || e.touches[0].clientY;
+
+            const dx = clientX - startX;
+            const dy = clientY - startY;
+
+            // Boundary checks (biar tidak hilang dari layar)
+            let newLeft = initialLeft + dx;
+            let newTop = initialTop + dy;
+
+            // Simple constraint
+            newLeft = Math.max(40, Math.min(window.innerWidth - 40, newLeft));
+            newTop = Math.max(40, Math.min(window.innerHeight - 40, newTop));
+
+            radialWrapper.style.left = newLeft + 'px';
+            radialWrapper.style.top = newTop + 'px';
+        }
+
+        function stopDrag() {
+            isDragging = false;
+            mainBtn.style.cursor = 'grab';
+            document.removeEventListener('mousemove', onDrag);
+            document.removeEventListener('touchmove', onDrag);
+            document.removeEventListener('mouseup', stopDrag);
+            document.removeEventListener('touchend', stopDrag);
+        }
+
+        // --- RADIAL MENU GENERATION & LOGIC ---
+
+        // Fungsi helper untuk membuat tombol
+        function createBtn(item, className, onClick) {
+            const btn = document.createElement('div');
+            btn.className = `radial-item ${className}`;
+            btn.innerHTML = `<i class="${item.icon}"></i><span>${item.name}</span>`;
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                onClick(item);
+            });
+            return btn;
+        }
+
+        // Render Level 1 (Categories)
+        function renderLevel1() {
+            menuL1.innerHTML = '';
+            
+            // Tombol Developer
+            const btnDev = createBtn(
+                { name: 'Developer', icon: 'fa-solid fa-code' }, 
+                'cat-dev', 
+                () => openSubMenu('developer')
+            );
+            menuL1.appendChild(btnDev);
+
+            // Tombol Social
+            const btnSoc = createBtn(
+                { name: 'Social', icon: 'fa-solid fa-users' }, 
+                'cat-soc', 
+                () => openSubMenu('social')
+            );
+            menuL1.appendChild(btnSoc);
+        }
+
+        // Render Level 2 (Items)
+        function renderLevel2(type) {
+            menuL2.innerHTML = '';
+            let items = [];
+            
+            if (type === 'developer') {
+                items = languages.map(lang => ({
+                    ...lang,
+                    onClick: () => showDevContent(lang)
+                }));
+            } else {
+                items = socials.map(soc => ({
+                    ...soc,
+                    onClick: () => window.open(soc.link, '_blank')
+                }));
+            }
+
+            items.forEach((item, index) => {
+                const className = type === 'developer' ? 'cat-dev' : 'cat-soc';
+                const btn = createBtn(item, className, item.onClick);
+                menuL2.appendChild(btn);
+            });
+        }
+
+        // Animasi Membuka Menu
+        mainBtn.addEventListener('click', () => {
+            if (menuState === 'closed') {
+                openMenu();
+            } else {
+                closeMenu();
+            }
+        });
+
+        function openMenu() {
+            menuState = 'level1';
+            mainBtn.classList.add('active');
+            renderLevel1();
+
+            // Posisi 2 item (Kiri & Kanan atau Atas & Bawah)
+            // Disini kita buat memanjang horizontal: Kiri (Social), Kanan (Dev)
+            const items = menuL1.children;
+            
+            anime({
+                targets: items,
+                opacity: [0, 1],
+                translateX: (el, i) => i === 0 ? -80 : 80, // Social ke kiri, Dev ke kanan
+                scale: [0, 1],
+                delay: anime.stagger(100),
+                duration: 500,
+                easing: 'easeOutElastic(1, .8)'
+            });
+
+            // Allow click events
+            Array.from(items).forEach(btn => btn.style.pointerEvents = 'auto');
+        }
+
+        function closeMenu() {
+            menuState = 'closed';
+            mainBtn.classList.remove('active');
+            hideModal();
+
+            // Animasi tutup Level 2 dulu jika ada
+            anime({
+                targets: menuL2.children,
+                opacity: 0,
+                scale: 0,
+                duration: 300,
+                easing: 'easeInBack',
+                complete: () => {
+                    // Tutup Level 1
+                    anime({
+                        targets: menuL1.children,
+                        opacity: 0,
+                        translateX: 0,
+                        scale: 0,
+                        duration: 300,
+                        easing: 'easeInBack',
+                        complete: () => {
+                             menuL1.innerHTML = '';
+                             menuL2.innerHTML = '';
+                        }
+                    });
+                }
+            });
+        }
+
+        // Buka Sub Menu (Developer / Social)
+        function openSubMenu(type) {
+            menuState = `level2_${type}`;
+            renderLevel2(type);
+
+            const items = menuL2.children;
+            const total = items.length;
+            const radius = 120; // Radius lingkaran
+            const startAngle = 0; 
+
+            // Menghitung posisi spiral/circle
+            // Untuk developer (15 item) kita buat full circle (360 deg)
+            // Untuk social (4 item) juga 360 agar seimbang
+            
+            anime.set(items, { opacity: 0, scale: 0, translateX: 0, translateY: 0 });
+
+            anime({
+                targets: items,
+                opacity: [0, 1],
+                scale: [0, 1],
+                // Logic posisi radial
+                translateX: function(el, i) {
+                    const angle = (360 / total) * i;
+                    const rad = angle * (Math.PI / 180);
+                    return Math.cos(rad) * radius;
+                },
+                translateY: function(el, i) {
+                    const angle = (360 / total) * i;
+                    const rad = angle * (Math.PI / 180);
+                    return Math.sin(rad) * radius;
+                },
+                delay: anime.stagger(50), // Stagger effect spiral
+                duration: 600,
+                easing: 'easeOutExpo'
+            });
+
+            // Hide Level 1 items agar tidak crowded (opsional, tapi kita blur saja atau biarkan)
+            anime({
+                targets: menuL1.children,
+                opacity: 0.3,
+                scale: 0.8,
+                duration: 300
+            });
+
+            Array.from(items).forEach(btn => btn.style.pointerEvents = 'auto');
+        }
+
+        // --- MODAL & CONTENT LOGIC ---
+
+        function showDevContent(lang) {
+            const title = document.getElementById('modal-title');
+            const desc = document.getElementById('modal-desc');
+            const code = document.getElementById('modal-code');
+            
+            title.innerText = lang.name;
+            desc.innerText = lang.desc;
+            
+            // Simple Syntax Highlighter Replacement
+            let formattedCode = lang.code
+                .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+                .replace(/\b(const|let|var|def|class|public|private|import|from|return|function|echo|print|if|else|while)\b/g, '<span class="kwd">$1</span>')
+                .replace(/(["'])(?:(?=(\\?))\2.)*?\1/g, '<span class="str">$&</span>')
+                .replace(/\b(console|log|print|println|printf)\b/g, '<span class="fnc">$1</span>')
+                .replace(/(\/\/.*|\/\*[\s\S]*?\*\/)/g, '<span class="com">$1</span>');
+
+            code.innerHTML = formattedCode;
+            infoModal.classList.add('visible');
+        }
+
+        function hideModal() {
+            infoModal.classList.remove('visible');
+        }
+
+        document.getElementById('modal-close').addEventListener('click', hideModal);
+
+        // --- WINDOW CLICK TO CLOSE ---
+        // Klik di luar menu untuk menutup
+        document.addEventListener('click', (e) => {
+            if (menuState !== 'closed') {
+                // Cek apakah klik terjadi di dalam radial wrapper atau modal
+                const isClickInsideRadial = radialWrapper.contains(e.target);
+                const isClickInsideModal = infoModal.contains(e.target);
+
+                if (!isClickInsideRadial && !isClickInsideModal) {
+                    closeMenu();
+                }
+            }
+        });
+
+        // --- INITIAL POSITION CENTER ---
+        // Agar menu benar-benar di tengah saat load pertama
+        window.addEventListener('load', () => {
+            const w = window.innerWidth;
+            const h = window.innerHeight;
+            radialWrapper.style.left = (w / 2) + 'px';
+            radialWrapper.style.top = (h / 2) + 'px';
+        });
+
+    </script>
+</body>
+</html>
